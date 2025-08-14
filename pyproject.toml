@@ -1,0 +1,53 @@
+[build-system]
+requires = [
+    "setuptools>=42",
+    ]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ['CompactGF', 'CompactGF._pipelines']
+
+[project]
+name = 'figaro'
+description = 'compact-glasflow'
+version = '0.0.1'
+requires-python = '>= 3.9'
+readme = {file = "README.md", content-type = "text/markdown"}
+license = {file = "LICENSE"}
+keywords = ['Normalising flow', 'torch', 'black holes', 'population', 'inference']
+authors = [
+  {name = "Stefano Rinaldi", email = "stefano.rinaldi@uni-heidelberg.de"},
+  ]
+
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  'Topic :: Scientific/Engineering :: Astronomy',
+  'Topic :: Scientific/Engineering :: Physics',
+]
+
+dependencies = [
+    "numpy > 1.22",
+    "glasflow",
+    "matplotlib != 3.6.3",
+    "dill",
+    "corner",
+    "numba",
+    "h5py",
+    "tqdm",
+    "astropy",
+    "ray",
+    ]
+
+[project.urls]
+Repository = "https://github.com/sterinaldi/compact-glasflow.git"
+Issues = "https://github.com/sterinaldi/compact-glasflow/issues"
+
+[project.scripts]
+cgf-train          = "CompactGF._pipelines.train_flow:main"
