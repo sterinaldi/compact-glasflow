@@ -5,6 +5,10 @@ import json
 from pathlib import Path
 from CompactGF.utils import ExtensionError
 from CompactGF.flow import CompactFlow
+from CompactGF._loaders import loaders, available_codes_list
+
+def available_codes():
+    print(available_codes_list)
 
 def save_flow(flow, name = 'trained_flow', folder = '.'):
     out_folder = Path(folder)
@@ -40,24 +44,19 @@ def load_flow(file):
     flow.eval()
     return flow
 
-def _load_sevn_file(file, pars, hyperpars):
-    """
-    Ad-hoc SEVN data product reader
-    """
-    column_names = ['ID', 'mass_1','mass_2', 'cmu1','cmu2','z', 'z_form','t','Z']
-    df =  pd.read_csv(Path(file), delimiter = ' ', header = 1, names = column_names)
-    df['q'] = df['mass_2']/df['mass_1']
-    return df[pars], df[hyperpars]
-
-def load_sevn_file(file, pars, hyperpars, pdf = False, n_samples = None):
-    df_pars, df_hyperpars = _filter_df(*_load_sevn_file(file, pars, hyperpars), pdf, n_samples)
+def load_file(file, pars, hyperpars, code, pdf = False, n_samples = None):
+    if not code in loaders.keys():
+        raise NotImplementedError(f"Code not implemented (yet). Available codes: {available_codes_list}")
+    df_pars, df_hyperpars = _filter_df(*loaders[code](file, pars, hyperpars), pdf, n_samples)
     return df_pars.to_numpy(), df_hyperpars.to_numpy()
 
-def load_sevn(path, pars, hyperpars, pdf = False, n_samples = None, ext = '.dat'):
+def load_data(path, pars, hyperpars, code, pdf = False, n_samples = None, ext = '.dat'):
     """
     Load sevn files from a folder. If pdf is true, each file is downsampled to the same number of samples and ignored if below
     """
-    data                  = [_load_sevn_file(file, pars, hyperpars) for file in Path(path).glob('*'+ext)]
+    if not code in loaders.keys():
+        raise NotImplementedError(f"Code not implemented (yet). Available codes: {available_codes_list}")
+    data                  = [loaders[code](file, pars, hyperpars) for file in Path(path).glob('*'+ext)]
     df_pars               = pd.concat([df[0] for df in data])
     df_hyperpars          = pd.concat([df[1] for df in data])
     df_pars, df_hyperpars = _filter_df(df_pars, df_hyperpars, pdf, n_samples)
