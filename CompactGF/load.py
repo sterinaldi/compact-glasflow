@@ -2,12 +2,11 @@ import numpy as np
 import pandas as pd
 import torch
 import json
-from utils import ExtensionError
 from pathlib import Path
+from CompactGF.utils import ExtensionError
 from CompactGF.flow import CompactFlow
 
 def save_flow(flow, name = 'trained_flow', folder = '.'):
-    if flow.n
     out_folder = Path(folder)
     out_folder.mkdir(exist_ok = True, parents = True)
     with open(Path(out_folder, f'{name}.json'), 'w') as f:
@@ -16,7 +15,7 @@ def save_flow(flow, name = 'trained_flow', folder = '.'):
 
 def load_flow(file):
     ext = Path(file).suffix
-    if ext is not '.json':
+    if ext != '.json':
         if ext == '.pt':
             raise ExtensionError("Please pass a .json file instead of a .pt file.")
         else:
@@ -69,7 +68,7 @@ def load_sevn(path, pars, hyperpars, pdf = False, n_samples = None, ext = '.dat'
             raise ValueError("Please specify the desired number of samples")
         n_samples = int(n_samples)
         indexes   = [np.random.choice(len(df[0]), size = n_samples, replace = False) if len(df[0]) >= n_samples else None for df in data]
-        data = [[df[0][idx], df[1][idx]] if len(df[0]]) >= n_samples else [None, None] for df, idx in zip(data, indexes)]
+        data = [[df[0][idx], df[1][idx]] if len(df[0]) >= n_samples else [None, None] for df, idx in zip(data, indexes)]
     samples_pars      = pd.concatenate([df[0] for df in data]).to_numpy()
     samples_hyperpars = pd.concatenate([df[1] for df in data]).to_numpy()
     return samples_pars, samples_hyperpars
