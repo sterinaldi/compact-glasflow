@@ -37,7 +37,7 @@ dependencies = [
     "matplotlib",
     "torch",
     "glasflow",
-    "sklearn",
+    "scikit-learn",
     "tqdm",
     "pandas"
     ]
