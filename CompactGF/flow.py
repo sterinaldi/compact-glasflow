@@ -26,7 +26,8 @@ class CompactFlow(CouplingNSF):
                  batch_size           = 1000,
                  learning_rate        = 0.001,
                  *args,
-                 **kwargs)
+                 **kwargs
+                 ):
         # Store config parameters
         self.n_dimensions      = int(n_dimensions)
         self.n_hyperparameters = int(n_hyperparameters)
