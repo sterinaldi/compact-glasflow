@@ -49,7 +49,7 @@ compare_with_data(flow, samples_pars, samples_hyperpars)
 
 ## Acknowledgements
 
-Default taining parameters are taken from [Colloms et al. (2025)](). Please cite it if you make use of this code in your work:
+Default taining parameters are taken from [Colloms et al. (2025)](https://ui.adsabs.harvard.edu/abs/2025ApJ...988..189C). Please cite it if you make use of this code in your work:
 ```
 @ARTICLE{2025ApJ...988..189C,
        author = {{Colloms}, Storm and {Berry}, Christopher P.~L. and {Veitch}, John and {Zevin}, Michael},
