@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 packages = ['CompactGF', 'CompactGF._pipelines']
 
 [project]
-name = 'figaro'
+name = 'CompactGF'
 description = 'compact-glasflow'
 version = '0.0.1'
 requires-python = '>= 3.9'
