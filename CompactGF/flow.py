@@ -2,10 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pathlib import Path
+from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 from glasflow import CouplingNSF
 from torch import from_numpy, no_grad
 from torch.utils.data import TensorDataset, DataLoader
+from torch.optim import Adam
 
 from CompactGF._probit import transform_to_probit, probit, from_probit, probit_logJ
 
@@ -16,7 +18,8 @@ class CompactFlow(CouplingNSF):
     Heavily inspired (if not straightforwardly following) by glasflow's user guide.
     Default values from Colloms et al. (2025)
     """
-    def __init__(n_dimensions,
+    def __init__(self,
+                 n_dimensions,
                  n_hyperparameters,
                  n_transforms         = 6,
                  n_neurons            = 128,
@@ -25,6 +28,7 @@ class CompactFlow(CouplingNSF):
                  probit               = False,
                  batch_size           = 1000,
                  learning_rate        = 0.001,
+                 pt_file              = None,
                  *args,
                  **kwargs
                  ):
@@ -36,8 +40,9 @@ class CompactFlow(CouplingNSF):
         self.n_bins            = int(n_bins)
         self.batch_size        = int(batch_size)
         self.learning_rate     = learning_rate
-        self.bounds            = bounds
-        self.probit            = probit
+        self.bounds            = np.atleast_2d(bounds)
+        self.probit            = int(probit)
+        self.pt_file           = pt_file
         self.device            = 'cpu' # Hardcoded for now
         # Consistency checks
         if self.bounds is not None:
@@ -52,16 +57,18 @@ class CompactFlow(CouplingNSF):
         self.config_dict['n_neurons']         = self.n_neurons
         self.config_dict['n_bins']            = self.n_bins
         self.config_dict['probit']            = self.probit
+        self.config_dict['pt_file']           = self.pt_file
         if self.bounds is None:
             self.config_dict['bounds'] = 'None'
         else:
             self.config_dict['bounds'] = self.bounds.tolist()
         # Instantiate actual NF
-        super().__init__(n_inputs             = self.n_dimensions,
-                         n_conditional_inputs = self.n_hyperparameters,
-                         n_transforms         = self.n_transforms,
-                         n_neurons            = self.n_neurons,
-                         num_bins             = n_bins
+        super().__init__(n_inputs                      = self.n_dimensions,
+                         n_conditional_inputs          = self.n_hyperparameters,
+                         n_transforms                  = self.n_transforms,
+                         n_neurons                     = self.n_neurons,
+                         num_bins                      = n_bins,
+                         batch_norm_between_transforms = True,
                          *args,
                          **kwargs)
         
@@ -76,13 +83,13 @@ class CompactFlow(CouplingNSF):
         y_train_tensor    = from_numpy(y_train.astype(np.float32))
         train_dataset     = TensorDataset(x_train_tensor, y_train_tensor)
         self.train_loader = DataLoader(train_dataset,
-                                         batch_size = selfbatch_size,
+                                         batch_size = self.batch_size,
                                          shuffle    = True,
                                          )
         # Validation
         x_val_tensor    = from_numpy(x_val.astype(np.float32))
         y_val_tensor    = from_numpy(y_val.astype(np.float32))
-        val_dataset     = torch.utils.data.TensorDataset(x_val_tensor, y_val_tensor)
+        val_dataset     = TensorDataset(x_val_tensor, y_val_tensor)
         self.val_loader = DataLoader(val_dataset,
                                      batch_size = self.batch_size,
                                      shuffle    = False
@@ -94,10 +101,10 @@ class CompactFlow(CouplingNSF):
         """
         # Preparation
         self.loss = dict(train=[], val=[])
-        optimiser = torch.optim.Adam(self.parameters(),
-                                     lr           = self.learning_rate,
-                                     weight_decay = 0,
-                                     )
+        optimiser = Adam(self.parameters(),
+                         lr           = self.learning_rate,
+                         weight_decay = 0,
+                         )
         # Training
         for _ in tqdm(range(n_epochs), desc = 'Training', disable = not(verbose)):
             self.train()
@@ -111,9 +118,9 @@ class CompactFlow(CouplingNSF):
                 _loss.backward()
                 optimiser.step()
                 train_loss += _loss.item()
-            self.loss["train"].append(train_loss / len(train_loader))
+            self.loss["train"].append(train_loss / len(self.train_loader))
 
-            flow.eval()
+            self.eval()
             val_loss = 0.
             for batch in self.val_loader:
                 x, y = batch
@@ -122,7 +129,7 @@ class CompactFlow(CouplingNSF):
                 with no_grad():
                     _loss = -self.log_prob(x, conditional=y).mean().item()
                 val_loss += _loss
-            self.loss["val"].append(val_loss / len(val_loader))
+            self.loss["val"].append(val_loss / len(self.val_loader))
         self.eval()
     
     def plot_loss(self, out_folder = '.'):
@@ -135,13 +142,15 @@ class CompactFlow(CouplingNSF):
         # Plot
         fig, ax = plt.subplots()
         ax.plot(self.loss['train'], color = 'steelblue', label = r'$\mathrm{Train}$')
+        ylim = ax.get_ylim() # Autoscale is not working...
         ax.plot(self.loss['val'], color = 'firebrick', linestyle = '--', label = r'$\mathrm{Validation}$')
+        ax.set_ylim(ylim)
         ax.set_xlabel(r'$\mathrm{Epoch}$')
         ax.set_ylabel(r'$\mathrm{Loss}$')
         ax.legend(loc = 0)
         fig.savefig(Path(out_folder, 'loss_function.pdf'), bbox_inches = 'tight')
     
-    def train(self, data, hyperpars, n_epochs = 1000, verbose = True):
+    def train_flow(self, data, hyperpars, n_epochs = 1000, verbose = True):
         """
         Training routine.
         """
@@ -186,7 +195,7 @@ class CompactFlow(CouplingNSF):
             raise ValueError("Hyperparameter dimensionality is inconsistent with the expected number of hyperparameters.")
         return self._logpdf(x, hyperpars)
         
-    @probit
+#    @probit
     def _logpdf(self, x, hyperpars):
         """
         Internal logpdf evaluation. Points are already transformed in probit space by the decorator.
@@ -201,7 +210,7 @@ class CompactFlow(CouplingNSF):
         hyperpars    = from_numpy(hyperpars.astype(np.float32)).to(self.device)
         # Evaluate
         with no_grad():
-            log_pdf      = self.log_prob(x_tensor, hyperpars).cpu().numpy()
+            log_pdf  = self.log_prob(x_tensor, hyperpars).cpu().numpy()
         log_jacobian = -probit_logJ(x_reshaped, self.bounds, flag = self.probit)
         return np.reshape(log_pdf + log_jacobian, old_shape)
     

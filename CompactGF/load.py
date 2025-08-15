@@ -9,6 +9,7 @@ from CompactGF.flow import CompactFlow
 def save_flow(flow, name = 'trained_flow', folder = '.'):
     out_folder = Path(folder)
     out_folder.mkdir(exist_ok = True, parents = True)
+    flow.config_dict['pt_file'] = str(Path(out_folder, f'{name}.pt'))
     with open(Path(out_folder, f'{name}.json'), 'w') as f:
         json.dump(json.dumps(flow.config_dict), f)
     torch.save(flow.state_dict(), Path(out_folder, f'{name}.pt'))
@@ -20,7 +21,8 @@ def load_flow(file):
             raise ExtensionError("Please pass a .json file instead of a .pt file.")
         else:
             raise ExtensionError("Please provide a .json file.")
-    config_dict = json.load(file)
+    with open(file, 'r') as f:
+        config_dict = json.loads(json.load(f))
     for key in config_dict.keys():
         if key == 'probit':
             config_dict[key] = bool(config_dict[key])
@@ -47,28 +49,42 @@ def _load_sevn_file(file, pars, hyperpars):
     df['q'] = df['mass_2']/df['mass_1']
     return df[pars], df[hyperpars]
 
-def load_sevn_file(file, pars, hyperpars, n_samples = None):
-    df_pars, df_hyperpars = _load_sevn_file(file, pars, hyperpars)
-    samples_pars      = df_pars.to_numpy()
-    samples_hyperpars = df_hyperpars.to_numpy()
-    if n_samples is not None:
-        n_pts             = np.min([len(samples_pars), n_samples])
-        idx               = np.random.choice(len(samples_pars), size = n_pts, replace = False)
-        samples_pars      = samples_pars[idx]
-        samples_hyperpars = samples_hyperpars[idx]
-    return samples_pars, samples_hyperpars
+def load_sevn_file(file, pars, hyperpars, pdf = False, n_samples = None):
+    df_pars, df_hyperpars = _filter_df(*_load_sevn_file(file, pars, hyperpars), pdf, n_samples)
+    return df_pars.to_numpy(), df_hyperpars.to_numpy()
 
 def load_sevn(path, pars, hyperpars, pdf = False, n_samples = None, ext = '.dat'):
     """
     Load sevn files from a folder. If pdf is true, each file is downsampled to the same number of samples and ignored if below
     """
-    data = [_load_sevn_file(file, pars, hyperpars) for file in Path(path).glob('*'+ext)]
+    data                  = [_load_sevn_file(file, pars, hyperpars) for file in Path(path).glob('*'+ext)]
+    df_pars               = pd.concat([df[0] for df in data])
+    df_hyperpars          = pd.concat([df[1] for df in data])
+    df_pars, df_hyperpars = _filter_df(df_pars, df_hyperpars, pdf, n_samples)
+    return df_pars.to_numpy(), samples_hyperpars.to_numpy()
+
+def _filter_df(df_pars, df_hyperpars, pdf = False, n_samples = None):
     if pdf:
-        if n_samples_per_file is None:
+        if n_samples is None:
             raise ValueError("Please specify the desired number of samples")
         n_samples = int(n_samples)
-        indexes   = [np.random.choice(len(df[0]), size = n_samples, replace = False) if len(df[0]) >= n_samples else None for df in data]
-        data = [[df[0][idx], df[1][idx]] if len(df[0]) >= n_samples else [None, None] for df, idx in zip(data, indexes)]
-    samples_pars      = pd.concatenate([df[0] for df in data]).to_numpy()
-    samples_hyperpars = pd.concatenate([df[1] for df in data]).to_numpy()
-    return samples_pars, samples_hyperpars
+        red_dfs_hyperpars = []
+        red_dfs_pars      = []
+        for v in df_hyperpars.drop_duplicates().values:
+            idx = np.array(np.prod(df_hyperpars == v, axis = 1).tolist(), dtype = bool)
+            n_avail_samples = np.sum(idx)
+            if n_avail_samples < n_samples:
+                print(f"Hyperparameter(s) {v} excluded due to limited number of samples ({n_avail_samples} available, {n_samples} required).")
+            else:
+                selected = np.random.choice(n_avail_samples, size = n_samples, replace = False)
+                red_dfs_pars.append(df_pars[idx].iloc[selected])
+                red_dfs_hyperpars.append(df_hyperpars[idx].iloc[selected])
+        df_pars = pd.concat(red_dfs_pars)
+        df_hyperpars = pd.concat(red_dfs_hyperpars)
+    else:
+        if n_samples is not None:
+            n_pts             = np.min([len(samples_pars), int(n_samples)])
+            idx               = np.random.choice(len(samples_pars), size = n_pts, replace = False)
+            samples_pars      = samples_pars[idx]
+            samples_hyperpars = samples_hyperpars[idx]
+    return df_pars, df_hyperpars
