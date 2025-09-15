@@ -205,7 +205,7 @@ class CompactFlow(CouplingNSF):
             hyperpars = np.repeat(hyperpars, x.shape[0], axis = 0)
         # Prepare arrays and tensors
         old_shape    = x.shape
-        x_reshaped   = x.reshape(x, (-1, self.n_dimensions))
+        x_reshaped   = x.reshape((-1, self.n_dimensions))
         x_tensor     = from_numpy(x_reshaped).to(self.device)
         hyperpars    = from_numpy(hyperpars.astype(np.float32)).to(self.device)
         # Evaluate
